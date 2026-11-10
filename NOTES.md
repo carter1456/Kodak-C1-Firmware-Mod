@@ -100,29 +100,49 @@ Open mode on that path is `r1 = 1`. After a successful check, if the word at fil
 
 **Who calls it (only two direct calls):**
 
-1. **Setup menu handler**, file `0x407620`, UISetupObj event `0x14080000` (table at `0xAECB30`). The handler logs `Do FW Update` and calls `System_OnStrg_UploadFW`. That string is the log line, not a second menu-label pointer, so the on-screen row text is not separately proven.
-2. **`BackgroundFWUpdate`**, file `0x42286C`, registered in the background-task table at file `0xAEE820` with id `0x0D`. No direct `BL` to it. It calls the uploader with `r0 = 0` and, on a non-zero return, logs `System_OnStrg_UploadFW() fail(%d)`. What posts task `0x0D` was not traced.
+1. **Setup menu handler**, file `0x407620`, UISetupObj event `0x14080000` (handler table starts at file `0xAECB08`; this entry is at `0xAECB30`). The handler logs `Do FW Update` (string file `0x76CED0`) and calls `System_OnStrg_UploadFW`. No instruction in the image builds the immediate `0x14080000`; that constant lives in this table.
+2. **`BackgroundFWUpdate`**, file `0x42286C`. It calls the uploader with `r0 = 0` and, on a non-zero return, logs `System_OnStrg_UploadFW() fail(%d)`.
 
-`System_OnStrgInsert` / `System_OnStrgAttach` do **not** call the uploader. Leaving `A:\C110.bin` on the card is not, by itself, the trigger. That matches the earlier camera test (file present, normal boot, version unchanged): the setup handler was never entered. Whether task `0x0D` runs on a normal boot is **UNVERIFIED**.
+**Background task id (VERIFIED, corrects the old `0x0D` note).** `BKG_PostEvent` is file `0x5413FC`. `UIBackgroundTsk` (file `0x541080`) reads a 0x14-byte message, compares word 0 with each key of an `(id, function)` table, stride 8, and `BLX`es the function at `entry+4`. The const table starts at file `0xAEE7DC` and ends on a 0 key at `0xAEE85C`.
+
+| Id | Function file | Name |
+|---|---|---|
+| `0x0C` | `0x42286C` | `BackgroundFWUpdate` |
+| `0x0D` | `0x422858` | 16-byte stub, not the uploader |
+
+The old note paired the function pointer at `0xAEE820` with the following id word. The dispatcher uses the other alignment, so `BackgroundFWUpdate` is id **`0x0C`**.
+
+Immediate posts of id `0x0C` (`mov r0, #0xc` then `BL BKG_PostEvent`):
+
+- File `0x427D08`. That function is the `UIWifiCmdObj` handler for event `0x14020020` (pointer at file `0xAEEEA8`).
+- File `0x498278`, inside `C110FwUpdate` (file `0x4981EC`), after `A:\C110.bin` opens.
+
+Nothing else posts the constant `0x0C`. A few other callers pass `r0` from memory (`0x4553E4`, `0x464E7C`, `0x46530C`); those values were not recovered. Id `0x0D` is posted with an immediate at file `0x412560`, in the photo/zoom key cluster that also names `PhotoExe_OnZoom`. Card insert still does not call the uploader, and a normal boot does not execute either immediate post of id `0x0C`.
+
+**On-screen copy (strings VERIFIED, row not tied to the event).** The English string table (file `0xAF5858`, pairs of string id and pointer) has id `0x2B` → `FW Version`, then `Current Ver: `, `New Ver: `, and `Update Firmware?`. Those four strings are the firmware screen’s copy. No pointer or instruction connects string id `0x2B` to event `0x14080000`, so the LCD row that actually enters the setup handler is still **UNVERIFIED**. `Do FW Update` remains the handler’s log line.
 
 **`A:\NVTDELFW` (VERIFIED, still do not create it):**
 - `System_OnStrgAttach` (around file `0x4048D0`) opens it with mode `5` only if a bit on the storage object is set. If the open works it logs `Detected %s, delete %s`, deletes `A:\FW96565A.BIN`, then deletes `A:\NVTDELFW`. This is a file delete, not a flash erase, and it still destroys the staged firmware file.
 - `CheckSumOKCb` (file `0x403F50`) calls the file API with mode `0xA` on `A:\NVTDELFW`. A zero return logs `create indication %s failed`. A non-zero return renames `FW96565A.BIN` to the embedded `A:\C110.bin` at file `0xAECAA4` and sets the word at `0xB1824C`.
 
 **Other paths (not the SD menu trigger):**
-- `A:\iqTestFwUpdate.txt` is opened by file `0x498198` (`IQTestIsFwUpdate`). `C110FwUpdate` at file `0x4981EC` then opens `A:\C110.bin` and, if present, calls file `0x436B88`. Factory/IQ path.
+- `A:\iqTestFwUpdate.txt` is opened by file `0x498198` (`IQTestIsFwUpdate`). `C110FwUpdate` at file `0x4981EC` then opens `A:\C110.bin` and, if present, calls file `0x436B88` and posts background id `0x0C`. Factory/IQ path.
 - USB staging at file `0x423CB0` names `A:\FW96565T.BIN` and `A:\FW96565A.BIN`.
 - Mode name `UPDFW` (file `0x42F7A0` open / `0x42F750` close) and shell command `updfw` (`0x42FA0C`, string `update firmware mode`) are a mode switch, not the SD-file reader.
 
 ### Boot logo (tooling VERIFIED, not flashed)
 Ten 320x240 JPEGs, first at file `0x776C3C`. Absolute pointers (base `0x10000`) land on those offsets, so a swap has to keep each frame’s span. `c1_repack.py --boot-logo` writes a JPEG over every 320x240 frame it fits in and zero-pads the rest of that span.
 
+### All-in-one RAM cap (VERIFIED)
+U-Boot file `0xA1F4` is `mov r0, #0x02000000`. The following 64-bit compare (`cmp` / `sbcs` / `bge`) rejects the image when its size is greater than that value and prints `Your image size %lld is larger than all-in-one size with %d %s` (string file `0x43E5C`, loaded by the `ldr` at file `0xA220`). So `CONFIG_NVT_ALL_IN_ONE_IMG_SIZE` is **0x02000000 (33,554,432 bytes, 32 MiB)**. Stock `C110.bin` is 6,996,860 bytes. The on-disk rebuilds are 6,872,168 and 6,859,048. All three sit under this cap and under the flash RTOS window `0xD50000`.
+
+A later check in the same function (`movt r3, #0x494` at file `0xA240`, limit `0x04940000`) prints the `CONFIG_NVT_RUNFW_SDRAM_BASE` overlap string. That is a different limit.
+
 ## Open (priority order)
 
-1. On-camera check that Setup → the `0x14080000` handler is reachable, and whether background task `0x0D` runs on its own.
-2. Numeric `CONFIG_NVT_ALL_IN_ONE_IMG_SIZE` (the RAM buffer cap). The flash RTOS window is `0xD50000`.
-3. PIN lock / hidden features, only after a real update has been shown to run. `UseHiddenF` is still not a feature flag.
-4. SPI NOR dump before any flash. A checksum-correct file is not a reason to flash.
+1. On-camera check that the Setup path reaches UISetupObj event `0x14080000`. The English screen copy is `FW Version` / `Update Firmware?`, and that row is not yet tied to the event.
+2. PIN lock / hidden features, only after a real update has been shown to run. `UseHiddenF` is still not a feature flag.
+3. SPI NOR dump before any flash. A checksum-correct file under the 32 MiB cap is not a reason to flash.
 
 ## Safety
 - SPI dump before any successful flash attempt (handoff Step 0).

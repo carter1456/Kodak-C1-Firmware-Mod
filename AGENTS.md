@@ -11,8 +11,8 @@ Priority order:
 1. Header bytes `0x00–0x0F` — **solved**: fixed HDR2 magic, not a digest (see NOTES)
 2. BCL LZ compressor — `bcl_lz.py` (literal encoder remains too large for flash)
 3. Boot-logo JPEG swap — `c1_repack.py --boot-logo` (on disk only)
-4. SD/menu update trigger — **mapped**: `UISetupObj` event `0x14080000` and background task `0x0D` both call `System_OnStrg_UploadFW`. Card insert does not.
-5. PIN lock, hidden features, flash level — only after a real update has been shown to run
+4. SD/menu update trigger — **mapped**: `UISetupObj` event `0x14080000` calls the uploader directly. Background id **`0x0C`** is `BackgroundFWUpdate` (the old `0x0D` note was one word off). That id is posted by WiFi command `0x14020020` and by the IQ `C110FwUpdate` path. Card insert does not.
+5. PIN lock, hidden features — only after a real update has been shown to run
 
 ## Environment
 
@@ -33,6 +33,8 @@ Priority order:
 | RTOS load VA | **`0x00010000`** (from FDT `nvt_memory_cfg`) |
 | U-Boot load VA | **`0x07140000`** |
 | `UseHiddenF` | Substring of `SetUseHiddenFirst` — **not** a hidden-features flag |
+| All-in-one RAM cap | **`CONFIG_NVT_ALL_IN_ONE_IMG_SIZE = 0x02000000` (32 MiB)**. U-Boot file `0xA1F4`. Stock and both rebuilds are under it |
+| Background FW id | **`0x0C`** → `BackgroundFWUpdate` (file `0x42286C`). Table of `(id, fn)` starts at file `0xAEE7DC` |
 
 ## Key tools
 
@@ -55,7 +57,7 @@ Priority order:
 
 - No `A:\NVTDELFW`
 - No flash advice without SPI NOR backup plan
-- Never claim a patched image is flash-safe. Magic and `@0x24` can be correct while the RAM size cap and the on-camera trigger are still open, and a bad flash can brick the camera.
+- Never claim a patched image is flash-safe. Magic, `@0x24`, and the 32 MiB cap can all be satisfied while the on-camera menu path is still untested, and a bad flash can brick the camera.
 - Be explicit VERIFIED vs STRINGS ONLY vs UNVERIFIED
 
 ## Suggested checks
