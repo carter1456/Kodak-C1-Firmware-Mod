@@ -1,6 +1,8 @@
 # Cursor Cloud / agent handoff — Kodak PixPro C1 firmware
 
-Read this file first, then `NOTES.md`, then `c1-cursor-handoff.md` for history.
+Humans start at [`README.md`](README.md). The path to a running mod is there.
+
+Agents: read this file first, then `NOTES.md`, then `c1-cursor-handoff.md` for history.
 Prefer **NOTES.md** over the older handoff where they disagree.
 
 ## Goal
@@ -9,7 +11,7 @@ Custom firmware for a Kodak PixPro C1 (Novatek NA51089, ARM Cortex-A9, FreeRTOS,
 
 Priority order:
 1. Header bytes `0x00–0x0F` — **solved**: fixed HDR2 magic, not a digest (see NOTES)
-2. BCL LZ compressor — `bcl_lz.py` (literal encoder remains too large for flash)
+2. BCL LZ compressor — **solved** in `bcl_lz.py` (round-trips under the flash window). `--literal` is still too large to flash
 3. Boot-logo JPEG swap — `c1_repack.py --boot-logo` (on disk only)
 4. SD/menu update trigger — **mapped**: `UISetupObj` event `0x14080000` calls the uploader directly. In the const background table, id **`0x0C`** is `BackgroundFWUpdate` and id `0x0D` is `PhotoExe_DZoomInBK`. Id `0x0C` is posted by `UIWifiCmdObj` event `0x1402001F` and by `C110FwUpdate` after `A:\C110.bin` opens. The live background table pointer is BSS `0xC2BC18`; that it is a copy of the const table is **UNVERIFIED**. The LCD label for `0x14080000` is **UNVERIFIED**. Card insert does not call the uploader.
 5. PIN lock, hidden features — only after a real update has been shown to run
@@ -19,7 +21,7 @@ Priority order:
 - Python 3 (`python`, not `python3` on Windows hosts)
 - Firmware: `C110.bin` in repo root (v1.04, 6,996,860 bytes)
 - Unpack: `python c1_unpack.py C110.bin out` → expect `out/rtos_decompressed.bin` size **11608936** and **10** JPEGs in `out/jpegs/`
-- Optional: `pip install pillow` for JPEG extraction
+- Optional: `pip install pillow` for JPEG extraction and `--boot-logo` only
 
 ## Verified facts (do not re-litigate)
 

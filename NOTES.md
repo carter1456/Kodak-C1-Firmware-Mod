@@ -1,6 +1,8 @@
 # Kodak PixPro C1 — working notes (Cursor session)
 
-Trust this file + `c1-cursor-handoff.md`. Labels: **VERIFIED** / **STRINGS ONLY** / **UNVERIFIED**.
+Evidence log. The short overview and the path to a running mod are in [`README.md`](README.md).
+Prefer this file over [`c1-cursor-handoff.md`](c1-cursor-handoff.md) where they disagree.
+Labels: **VERIFIED** / **STRINGS ONLY** / **UNVERIFIED**.
 
 ## Done this session
 
