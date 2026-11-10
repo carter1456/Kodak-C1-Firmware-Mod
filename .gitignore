@@ -1,0 +1,9 @@
+# Regenerable unpack output (run: python c1_unpack.py C110.bin out)
+out/
+__pycache__/
+*.pyc
+.agent-tools/
+
+# Keep stock firmware; ignore rebuilt mutants
+C110_mod*.bin
+*_patched.bin
