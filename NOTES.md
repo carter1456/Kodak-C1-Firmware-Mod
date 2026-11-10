@@ -103,23 +103,56 @@ Open mode on that path is `r1 = 1`. After a successful check, if the word at fil
 1. **Setup menu handler**, file `0x407620`, UISetupObj event `0x14080000` (handler table starts at file `0xAECB08`; this entry is at `0xAECB30`). The handler logs `Do FW Update` (string file `0x76CED0`) and calls `System_OnStrg_UploadFW`. No instruction in the image builds the immediate `0x14080000`; that constant lives in this table.
 2. **`BackgroundFWUpdate`**, file `0x42286C`. It calls the uploader with `r0 = 0` and, on a non-zero return, logs `System_OnStrg_UploadFW() fail(%d)`.
 
-**Background task id (VERIFIED, corrects the old `0x0D` note).** `BKG_PostEvent` is file `0x5413FC`. `UIBackgroundTsk` (file `0x541080`) reads a 0x14-byte message, compares word 0 with each key of an `(id, function)` table, stride 8, and `BLX`es the function at `entry+4`. The const table starts at file `0xAEE7DC` and ends on a 0 key at `0xAEE85C`.
+**Background task id (const table VERIFIED; live RAM copy UNVERIFIED).** `BKG_PostEvent`’s entry is file `0x5413FC` (the `push` at `0x541404` is the body after two literal loads). It saves `r0` and stores that word as message word 0, then sends a `0x14`-byte message. There are 19 direct `BL`s to `0x5413FC` and none to `0x541404`.
 
-| Id | Function file | Name |
+`UIBackgroundTsk` / `BKG_DispatchMessage` (file `0x541080`) waits for that message, takes word 0 as the key, walks `(key, function)` pairs with stride 8, stops on key 0, and `BLX`es the word at `entry+4`. It loads the table pointer from the word at file `0xB08EC4`, whose stored value is `0x00C2BC18` (BSS, past the end of the image). `BKG_Open` (file `0x541520`) has one direct caller, file `0x3F7D6C`, which passes `{0, 0x8107}` and does not install this const table.
+
+The const `(id, function)` array that matches the walk starts at file `0xAEE7DC` (the old note started one word later, at `0xAEE7E0`) and ends on a 0 key at `0xAEE85C`. Function slots are VAs (file + `0x10000`). Log strings are the PIC targets inside each handler:
+
+| Id | Handler file | Name from its log string |
 |---|---|---|
-| `0x0C` | `0x42286C` | `BackgroundFWUpdate` |
-| `0x0D` | `0x422858` | 16-byte stub, not the uploader |
+| `0x01` | `0x422BDC` | `BackgroundDelAll`, `Background_DeleteAll` |
+| `0x02` | `0x422CFC` | no log string (calls file `0x422CE4` with `r0=1`, `r1=0`) |
+| `0x05` | `0x422B40` | `BackgroundFormat` |
+| `0x06` | `0x422E5C` | `BackgroundFormatCard` |
+| `0x07` | `0x422AA0` | no log string |
+| `0x08` | `0x422920` | `BackgroundNumReset` |
+| `0x0A` | `0x422C6C` | `Background_ProtectAll` |
+| `0x0B` | `0x4227A4` | no log string |
+| `0x0C` | `0x42286C` | `BackgroundFWUpdate` (string file `0x77216C`). Calls `System_OnStrg_UploadFW` with `r0=0` |
+| `0x0D` | `0x422858` | no log in the stub. Calls `PhotoExe_DZoomInBK` (file `0x414840`) and returns 1 |
+| `0x0E` | `0x422844` | no log in the stub. Calls `PhotoExe_DZoomOutBK` (file `0x414F70`) and returns 1 |
+| `0x0F` | `0x422770` | tail-calls the `0x13` handler |
+| `0x10` | `0x422720` | returns 0 |
+| `0x11` | `0x422780` | posts UI event `0x14080092` |
+| `0x12` | `0x422828` | no log string |
+| `0x13` | `0x422738` | no log string. Posts UI event `0x14001002` |
 
-The old note paired the function pointer at `0xAEE820` with the following id word. The dispatcher uses the other alignment, so `BackgroundFWUpdate` is id **`0x0C`**.
+`BackgroundFWUpdate` is id **`0x0C`** in this array. `AppBKW_SetData` (file `0x772180`) sits in the same string cluster and is not the log line of any of these handlers.
 
-Immediate posts of id `0x0C` (`mov r0, #0xc` then `BL BKG_PostEvent`):
+The dispatcher does not point at `0xAEE7DC`. One absolute word `0x00AFE7DC` (the const array’s VA) is stored at file `0x1E588`, in a mixed data region. No PIC `add rd, pc, rd` computes `0xAEE7DC`, and no instruction was found that loads the slot at `0x1E588` or copies the array to `0xC2BC18`. So “the live table is this const array” is **UNVERIFIED**. What is verified is the array’s own layout, and that the immediates below are the keys those posters send.
 
-- File `0x427D08`. That function is the `UIWifiCmdObj` handler for event `0x14020020` (pointer at file `0xAEEEA8`).
-- File `0x498278`, inside `C110FwUpdate` (file `0x4981EC`), after `A:\C110.bin` opens.
+**Who posts `0x0C` and `0x0D` (VERIFIED immediates).** Every direct caller of `0x5413FC` was disassembled. Two of them put the constant `0x0C` in `r0`:
 
-Nothing else posts the constant `0x0C`. A few other callers pass `r0` from memory (`0x4553E4`, `0x464E7C`, `0x46530C`); those values were not recovered. Id `0x0D` is posted with an immediate at file `0x412560`, in the photo/zoom key cluster that also names `PhotoExe_OnZoom`. Card insert still does not call the uploader, and a normal boot does not execute either immediate post of id `0x0C`.
+- File `0x427D08`, function `0x427D04`. `UIWifiCmdObj` (name at file `0xAEEEFC`) points at a handler table at file `0xAEED9C`. That table has the same `(event, function)` stride as `UISetupObj` (the object’s table pointer is 0x14 bytes after the name, and the first word is event `0x14020001`, not a code address). In that alignment the function at `0xAEEEA8` belongs to event **`0x1402001F`** (the event word is at `0xAEEEA4`). Event `0x14020020` (word at `0xAEEEAC`) calls file `0x427D60`, which does not post id `0x0C`. There is no direct `BL` to `0x427D04`; the call is through this table. The same event constant also appears at file `0xAEF21C`.
+- File `0x498278`, inside `C110FwUpdate` (file `0x4981EC`). After `A:\C110.bin` opens (mode 5) it calls file `0x436B88` with `r0=1` and then posts `0x0C`. The charging-screen function at file `0x4982D8` (log names `UIFlowCharging_ChildScrClose` and `UIFlowCharging_ScrOpen`) branches to `C110FwUpdate` from file `0x4984F8` when `IQTestIsFwUpdate`’s return value, stored through `r5`, is non-zero, `[r6]` was non-zero, and another word is not 5. `IQTestIsFwUpdate` (file `0x498190`) returns non-zero when `A:\iqTestFwUpdate.txt` opens.
 
-**On-screen copy (strings VERIFIED, row not tied to the event).** The English string table (file `0xAF5858`, pairs of string id and pointer) has id `0x2B` → `FW Version`, then `Current Ver: `, `New Ver: `, and `Update Firmware?`. Those four strings are the firmware screen’s copy. No pointer or instruction connects string id `0x2B` to event `0x14080000`, so the LCD row that actually enters the setup handler is still **UNVERIFIED**. `Do FW Update` remains the handler’s log line.
+No other `BL` to `BKG_PostEvent` uses `mov r0, #0xc`. Four callers pass `r0` from memory rather than an immediate: files `0x4553E4`, `0x455448`, `0x464E7C`, and `0x46530C`. Each of those loads a BSS word (or a register that points at one). Those values are runtime, so they are not evidence for id `0x0C` or `0x0D`.
+
+Id `0x0D` does have an immediate poster: file `0x412560`, `mov r0, #0xd`, inside `PhotoExe_OnZoom`. It is switch case 1 (`r2 == 1` at file `0x4124F4`). That runs `PhotoExe_DZoomInBK`, the digital-zoom path. Card insert still does not call the uploader. Whether a normal boot delivers WiFi event `0x1402001F`, or takes the charging branch above, is **UNVERIFIED**.
+
+**On-screen copy (strings VERIFIED, link to the event UNVERIFIED).** The English UI records around file `0xAF5854` are `(pointer, strlen)` pairs, not `(string id, pointer)`. The word `0x2B` at file `0xAF5858` is the length of the previous string, `Reset camera settings to  factory defaults.` (43 bytes). It is not an id for `FW Version`.
+
+| File | Record |
+|---|---|
+| `0xAF585C` | `FW Version` (VA `0x9C756C`, length `0x0A` at `0xAF5860`) |
+| `0xAF5864` | `Current Ver: ` (length `0x0D`) |
+| `0xAF586C` | `New Ver: ` (length `0x09`) |
+| `0xAF5874` | `Update Firmware?` (length `0x10`) |
+| `0xAF5B64` | `Please update firmware after  full charged!` (length `0x2B`) |
+| `0xAF5B6C` | `Warning! Do not turn off your  camera during update!` |
+
+Event `0x14080000` occurs once in the image, as the key at file `0xAECB30`. No ARM `mov`/`movw`/`movt` and no Thumb `movt` builds that constant. No absolute dword and no PIC `add rd, pc, rd` computes the address of the `FW Version`, `Update Firmware?`, or “full charged” records. The handler at `0x407620` loads `Do FW Update` and nothing else. Those English strings sit next to each other in the resource table. That does not make any of them the LCD label for event `0x14080000`. The label is **UNVERIFIED**.
 
 **`A:\NVTDELFW` (VERIFIED, still do not create it):**
 - `System_OnStrgAttach` (around file `0x4048D0`) opens it with mode `5` only if a bit on the storage object is set. If the open works it logs `Detected %s, delete %s`, deletes `A:\FW96565A.BIN`, then deletes `A:\NVTDELFW`. This is a file delete, not a flash erase, and it still destroys the staged firmware file.
@@ -134,13 +167,13 @@ Nothing else posts the constant `0x0C`. A few other callers pass `r0` from memor
 Ten 320x240 JPEGs, first at file `0x776C3C`. Absolute pointers (base `0x10000`) land on those offsets, so a swap has to keep each frame’s span. `c1_repack.py --boot-logo` writes a JPEG over every 320x240 frame it fits in and zero-pads the rest of that span.
 
 ### All-in-one RAM cap (VERIFIED)
-U-Boot file `0xA1F4` is `mov r0, #0x02000000`. The following 64-bit compare (`cmp` / `sbcs` / `bge`) rejects the image when its size is greater than that value and prints `Your image size %lld is larger than all-in-one size with %d %s` (string file `0x43E5C`, loaded by the `ldr` at file `0xA220`). So `CONFIG_NVT_ALL_IN_ONE_IMG_SIZE` is **0x02000000 (33,554,432 bytes, 32 MiB)**. Stock `C110.bin` is 6,996,860 bytes. The on-disk rebuilds are 6,872,168 and 6,859,048. All three sit under this cap and under the flash RTOS window `0xD50000`.
+U-Boot file `0xA1F0` is `ldrd r2, r3, [fp, #-0x3c]` (the image size as a u64). File `0xA1F4` is `mov r0, #0x02000000`, then `mov r1, #0`, `cmp r0, r2`, `sbcs`, and `bge` to file `0xA230` when the size is less than or equal to that limit. The fall-through prints and returns `-3` (`mvn r3, #2`). The `ldr r0, [pc, #0x1a8]` at file `0xA220` reads the pool at file `0xA3D0`, which holds VA `0x07183E5C`, the string at file `0x43E5C`: `%sYour image size %lld is larger than all-in-one size with %d %s`. The `%d` argument is the same immediate, `mov r1, #0x02000000` / `str r1, [sp]` at file `0xA214`. So `CONFIG_NVT_ALL_IN_ONE_IMG_SIZE` is **0x02000000 (33,554,432 bytes, 32 MiB)**, from this disassembly, not from a Kconfig file. Stock `C110.bin` is 6,996,860 bytes. The on-disk rebuilds are 6,872,168 and 6,859,048. All three sit under this cap and under the flash RTOS window `0xD50000`.
 
 A later check in the same function (`movt r3, #0x494` at file `0xA240`, limit `0x04940000`) prints the `CONFIG_NVT_RUNFW_SDRAM_BASE` overlap string. That is a different limit.
 
 ## Open (priority order)
 
-1. On-camera check that the Setup path reaches UISetupObj event `0x14080000`. The English screen copy is `FW Version` / `Update Firmware?`, and that row is not yet tied to the event.
+1. On-camera check that Setup reaches `UISetupObj` event `0x14080000`, and whether a normal boot posts background id `0x0C` (WiFi event `0x1402001F`, or the IQ file plus `C110FwUpdate`). The English strings `FW Version` and `Update Firmware?` are in the resource table only; the LCD label for that event is **UNVERIFIED**.
 2. PIN lock / hidden features, only after a real update has been shown to run. `UseHiddenF` is still not a feature flag.
 3. SPI NOR dump before any flash. A checksum-correct file under the 32 MiB cap is not a reason to flash.
 

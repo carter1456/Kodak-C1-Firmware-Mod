@@ -11,7 +11,7 @@ Priority order:
 1. Header bytes `0x00–0x0F` — **solved**: fixed HDR2 magic, not a digest (see NOTES)
 2. BCL LZ compressor — `bcl_lz.py` (literal encoder remains too large for flash)
 3. Boot-logo JPEG swap — `c1_repack.py --boot-logo` (on disk only)
-4. SD/menu update trigger — **mapped**: `UISetupObj` event `0x14080000` calls the uploader directly. Background id **`0x0C`** is `BackgroundFWUpdate` (the old `0x0D` note was one word off). That id is posted by WiFi command `0x14020020` and by the IQ `C110FwUpdate` path. Card insert does not.
+4. SD/menu update trigger — **mapped**: `UISetupObj` event `0x14080000` calls the uploader directly. In the const background table, id **`0x0C`** is `BackgroundFWUpdate` and id `0x0D` is `PhotoExe_DZoomInBK`. Id `0x0C` is posted by `UIWifiCmdObj` event `0x1402001F` and by `C110FwUpdate` after `A:\C110.bin` opens. The live background table pointer is BSS `0xC2BC18`; that it is a copy of the const table is **UNVERIFIED**. The LCD label for `0x14080000` is **UNVERIFIED**. Card insert does not call the uploader.
 5. PIN lock, hidden features — only after a real update has been shown to run
 
 ## Environment
@@ -34,7 +34,7 @@ Priority order:
 | U-Boot load VA | **`0x07140000`** |
 | `UseHiddenF` | Substring of `SetUseHiddenFirst` — **not** a hidden-features flag |
 | All-in-one RAM cap | **`CONFIG_NVT_ALL_IN_ONE_IMG_SIZE = 0x02000000` (32 MiB)**. U-Boot file `0xA1F4`. Stock and both rebuilds are under it |
-| Background FW id | **`0x0C`** → `BackgroundFWUpdate` (file `0x42286C`). Table of `(id, fn)` starts at file `0xAEE7DC` |
+| Background FW id | Const table at file `0xAEE7DC`: **`0x0C`** → `BackgroundFWUpdate` (file `0x42286C`). Posted by WiFi event `0x1402001F` and by `C110FwUpdate`. Id `0x0D` is `PhotoExe_DZoomInBK`. Live table pointer is BSS `0xC2BC18` (**UNVERIFIED** that it matches the const array) |
 
 ## Key tools
 
