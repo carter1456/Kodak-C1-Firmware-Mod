@@ -2,7 +2,7 @@
 
 Offline tools for Kodak PixPro C1 stock firmware `C110.bin` v1.04 (6,996,860 bytes), Novatek NA51089. There is no full software rip and no ready-to-flash mod package. These scripts unpack that stock image, check it, and rebuild a file on a computer.
 
-Start here. The evidence is in [`NOTES.md`](NOTES.md).
+Start here. The longer path is [`ROADMAP.md`](ROADMAP.md). The pack layout is [`docs/firmware-format.md`](docs/firmware-format.md), how an update starts is [`docs/update-path.md`](docs/update-path.md), and what not to do is [`docs/safety.md`](docs/safety.md). The evidence is in [`NOTES.md`](NOTES.md).
 
 ## Path to a running mod
 
@@ -56,6 +56,11 @@ The identity rebuild is 6,872,168 bytes (`@0x24=0x8D84`). The boot-logo rebuild 
 | `nvt_sum.py` | HDR2 magic, `@0x24`, and the BCL1 checksum |
 | `bcl_lz.py` | BCL LZ compress and decompress |
 | `c1_repack.py` | Rebuild an image, fix `@0x24`, optional in-place boot-logo swap |
+| [`ROADMAP.md`](ROADMAP.md) | Done, next on the camera, and later features |
+| [`docs/firmware-format.md`](docs/firmware-format.md) | HDR2 header, partitions, BCL1 |
+| [`docs/update-path.md`](docs/update-path.md) | Which events call the uploader |
+| [`docs/safety.md`](docs/safety.md) | Dump first. Do not create `NVTDELFW` |
 | `NOTES.md` | Reverse-engineering log. This is the evidence. |
 | `AGENTS.md` | Handoff for coding agents |
 | `c1-cursor-handoff.md` | Older session history. Where it disagrees with `NOTES.md`, NOTES wins. |
+| `requirements.txt` | Optional Pillow pin for JPEG extract and `--boot-logo` |

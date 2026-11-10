@@ -1,0 +1,3 @@
+# Optional. Unpack, checksums, recompress, and an identity rebuild do not need it.
+# JPEG extract and c1_repack.py --boot-logo do.
+pillow

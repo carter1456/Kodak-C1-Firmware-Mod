@@ -1,6 +1,6 @@
 # Cursor Cloud / agent handoff — Kodak PixPro C1 firmware
 
-Humans start at [`README.md`](README.md). The path to a running mod is there.
+Humans start at [`README.md`](README.md). The path is [`ROADMAP.md`](ROADMAP.md). Format, update behavior, and safety are under [`docs/`](docs/).
 
 Agents: read this file first, then `NOTES.md`, then `c1-cursor-handoff.md` for history.
 Prefer **NOTES.md** over the older handoff where they disagree.
